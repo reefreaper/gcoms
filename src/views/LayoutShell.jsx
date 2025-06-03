@@ -36,16 +36,16 @@ export default function LayoutShell({ children }) {
 			{/* Sidebar */}
 			<aside className="w-56 bg-white border-r border-gray-200 flex flex-col">
 				<div className="p-2 font-bold text-lg border-b border-gray-200 text-gray-500">
-					<div>
-					<img
-						alt="logo"
-						src={logo}
-						width="40"
-						height="40"
-						className="d-inline-block align-top mx-3"
-					/>
-					 GeoCities
-					 </div>
+					<div className="flex items-center">
+						<img
+							alt="logo"
+							src={logo}
+							width="40"
+							height="40"
+							className="inline-block align-middle mr-2"
+						/>
+						<span className="text-gray-600">GeoCities</span>
+					</div>
 				</div>
 				<nav className="flex-1 overflow-y-hidden">
 					{navItems.map((item) => (
@@ -54,8 +54,8 @@ export default function LayoutShell({ children }) {
 							onClick={() => handleNavigation(item.id)}
 							className={`flex items-center px-4 py-3 text-sm w-full text-left hover:bg-gray-100 
 								${active === item.id 
-									? 'bg-gray-200 font-semibold text-gray-300' 
-									: 'text-gray-400'
+									? 'bg-gray-200 font-semibold text-gray-400' 
+									: 'text-gray-500'
 								}`}
 						>
 							<span className="mr-2">{item.icon}</span>
@@ -69,12 +69,12 @@ export default function LayoutShell({ children }) {
 			<div className="flex-1 flex flex-col overflow-y-hidden">
 				{/* Top Toolbar */}
 				<header className="h-12 bg-white border-b border-gray-200 px-4 flex items-center justify-between">
-					<div className="text-sm text-gray-600">Today is {new Date().toLocaleDateString()}</div>
+					<div className="text-sm text-gray-500">Today is {new Date().toLocaleDateString()}</div>
 					<div className="text-sm text-gray-500">Welcome, Citizen</div>
 				</header>
 
 				{/* App content */}
-				<main className="flex-1 overflow-hidden p-4 pr-0">
+				<main className="flex-1 overflow-auto p-4">
 					{children || <div className="text-gray-500">Select a section to begin</div>}
 				</main>
 			</div>

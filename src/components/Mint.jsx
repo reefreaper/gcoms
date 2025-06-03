@@ -258,10 +258,10 @@ const Mint = ({ provider, nft, cost, setIsLoading, isWhitelisted, whitelistOnly,
                     </div>
                     <div>
                         <button 
-                            className={`w-full font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline ${
+                            className={`w-full font-medium py-2 px-4 rounded focus:outline-none focus:shadow-outline ${
                                 whitelistOnly && !isWhitelisted 
-                                    ? "bg-gray-400 text-gray-700 cursor-not-allowed" 
-                                    : "bg-blue-500 hover:bg-blue-700 text-white"
+                                    ? "bg-gray-200 text-gray-400 cursor-not-allowed" 
+                                    : "bg-blue-400 hover:bg-blue-500 text-white"
                             }`}
                             type="submit" 
                             disabled={whitelistOnly && !isWhitelisted}

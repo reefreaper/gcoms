@@ -3,17 +3,17 @@ import logo from '../docs_img.jpeg';
 
 const Navigation = ({ account }) => {
   return (
-    <div className='flex flex-row'>
+    <div className='flex flex-row items-center p-2 border-b border-gray-200'>
       <img
         alt="logo"
         src={logo}
         width="40"
         height="40"
-        className="d-inline-block align-top mx-3"
+        className="inline-block mr-3"
       />
-      <div href="#">Asset Docs</div>
-      <div className="">
-        <div className="text-grey-300">
+      <div className="text-gray-600 font-medium">Asset Docs</div>
+      <div className="ml-auto">
+        <div className="text-gray-500 text-sm truncate max-w-xs">
           {account}
         </div>
       </div>

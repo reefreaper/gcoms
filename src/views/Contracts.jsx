@@ -54,6 +54,9 @@ export default function Contracts() {
   const [selectedNFT, setSelectedNFT] = useState(null)
 
   const [isLoading, setIsLoading] = useState(true)
+  
+  // Add state for print view
+  const [printViewImage, setPrintViewImage] = useState(null)
 
   const loadBlockchainData = async () => {
     // Initiate provider
@@ -181,6 +184,21 @@ export default function Contracts() {
   const handleNFTSelect = (nft) => {
     setSelectedNFT(nft);
   };
+  
+  // Handler for print view
+  const openPrintView = (nft) => {
+    setPrintViewImage(nft);
+  };
+  
+  // Handler to close print view
+  const closePrintView = () => {
+    setPrintViewImage(null);
+  };
+  
+  // Handler to print the document
+  const printDocument = () => {
+    window.print();
+  };
 
   return(
     <div className="w-full max-w-6xl mx-auto px-4 pb-12 text-gray-800 overflow-y-auto h-full">
@@ -205,9 +223,11 @@ export default function Contracts() {
                           alt={`Doc #${selectedNFT.id}`}
                           width="350"
                           height="500"
-                          className="border rounded max-w-full h-auto"
+                          className="border rounded max-w-full h-auto cursor-pointer hover:shadow-lg transition-shadow"
+                          onClick={() => openPrintView(selectedNFT)}
                         />
                         <p className="mt-2">Asset Doc #{selectedNFT.id}</p>
+                        <p className="text-sm text-gray-500 mt-1">(Click image to view printable version)</p>
                       </div>
                     )}
                   </div>
@@ -285,6 +305,43 @@ export default function Contracts() {
               setIsLoading={setIsLoading}
             />
           </div>
+          
+          {/* Print View Modal */}
+          {printViewImage && (
+            <div className="fixed inset-0 bg-white bg-opacity-95 z-50 flex flex-col items-center justify-start p-4 overflow-auto">
+              <div className="max-w-[8.5in] w-full bg-white rounded-lg overflow-hidden shadow-md print:shadow-none">
+                <div className="p-4 bg-gray-100 flex justify-between items-center print:hidden">
+                  <h3 className="text-lg font-medium">Asset Document #{printViewImage.id}</h3>
+                  <div>
+                    <button 
+                      onClick={printDocument}
+                      className="mr-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 focus:outline-none"
+                    >
+                      Print
+                    </button>
+                    <button 
+                      onClick={closePrintView}
+                      className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 focus:outline-none"
+                    >
+                      Close
+                    </button>
+                  </div>
+                </div>
+                <div className="p-4 flex justify-center bg-white">
+                  <div className="w-full aspect-[8.5/11] relative">
+                    <img 
+                      src={printViewImage.imageUrl} 
+                      alt={`Asset Document #${printViewImage.id}`}
+                      className="w-full h-full object-contain border print:border-0"
+                    />
+                  </div>
+                </div>
+                <div className="p-4 text-center text-gray-500 text-sm print:hidden">
+                  This document is sized for standard 8.5" x 11" paper.
+                </div>
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>
