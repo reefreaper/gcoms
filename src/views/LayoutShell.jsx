@@ -1,12 +1,13 @@
 // AppShell.jsx
 import { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { Home, Building2, Calendar, Users, ClipboardList, ListChecks, BarChart2, Settings } from 'lucide-react'
+import { Home, Building2, Calendar, Users, ClipboardList, ListChecks, BarChart2, Settings, Plus } from 'lucide-react'
 
 import logo from '../docs_img.jpeg';
 
 const navItems = [
 	{ label: 'Dashboard', icon: <Home size={18} />, id: 'dashboard' },
+	{ label: 'Create Asset', icon: <Plus size={18} />, id: 'create-asset' },
 	{ label: 'Contracts', icon: <Home size={18} />, id: 'contracts' },
 	{ label: 'Facilities', icon: <Building2 size={18} />, id: 'facilities' },
 	{ label: 'Calendar', icon: <Calendar size={18} />, id: 'calendar' },
@@ -25,10 +26,13 @@ export default function LayoutShell({ children }) {
 	const currentRoute = location.pathname.split('/')[1] || 'dashboard'
 	const [active, setActive] = useState(currentRoute)
 
-	const handleNavigation = (itemId) => {
-		setActive(itemId)
-		// Use absolute paths with leading slash
-		navigate(`/${itemId}`)
+	const handleNavigation = (id) => {
+		setActive(id)
+		if (id === 'create-asset') {
+			navigate('/create-asset')
+		} else {
+			navigate(`/${id}`)
+		}
 	}
 
 	return (

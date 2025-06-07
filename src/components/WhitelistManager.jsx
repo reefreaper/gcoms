@@ -309,12 +309,12 @@ const WhitelistManager = ({ provider, nft, account, setIsLoading }) => {
     }, [nft, loadWhitelist])
     
     // Close database connection when component unmounts
-    useEffect(() => {
+     useEffect(() => {
         return () => {
             // Close database connection when component unmounts
             WhitelistDatabase.close();
         };
-    }, []);
+    }, []); 
     
     if (!isOwner) {
         return (

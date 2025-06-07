@@ -6,6 +6,7 @@ import Home from './views/Home';
 import About from './views/About';
 import Contact from './views/Contact';
 import Contracts from './views/Contracts';
+import CreateAsset from './views/CreateAsset';
 
 function App() {
   return (
@@ -24,6 +25,7 @@ function App() {
           <Route path="/referrals" element={<LayoutShell><div>Referrals Page</div></LayoutShell>} />
           <Route path="/activities" element={<LayoutShell><div>Activities Page</div></LayoutShell>} />
           <Route path="/reports" element={<LayoutShell><div>Reports Page</div></LayoutShell>} />
+          <Route path="/create-asset" element={<LayoutShell><CreateAsset /></LayoutShell>} />
           <Route path="/settings" element={<LayoutShell><div>Settings Page</div></LayoutShell>} />
         </Routes>
       </div>
