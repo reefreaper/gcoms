@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
-import AssetMetadataForm from '../components/AssetMetadataForm';
-import AssetImageGenerator from '../components/AssetImageGenerator';
+import AssetMetadataForm from './AssetMetadataForm';
+import AssetImageGenerator from './AssetImageGenerator';
 import { uploadToPinata, uploadMetadataToPinata } from '../utils/ipfsUtils.js';
 import NFT_ABI from '../abis/NFT.json';
 import config from '../config.js';
@@ -12,12 +12,12 @@ import { Buffer } from 'buffer';
 // Make Buffer available globally for keccak256
 window.Buffer = Buffer;
 
-function CreateAsset() {
+const UnifiedAssetWorkflow = () => {
+  const [currentStep, setCurrentStep] = useState(1);
   const [metadata, setMetadata] = useState(null);
   const [generatedImage, setGeneratedImage] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [mintStatus, setMintStatus] = useState({ status: '', message: '' });
-  const [showPreview, setShowPreview] = useState(false);
   
   // Add whitelist state
   const [account, setAccount] = useState(null);
@@ -95,22 +95,11 @@ function CreateAsset() {
     setIsSubmitting(true);
     setMetadata(formData);
     setIsSubmitting(false);
-    setShowPreview(true); // Show preview after metadata is submitted
+    setCurrentStep(2); // Move to preview step
   };
 
   const handleImageGenerated = (imageDataUrl) => {
     setGeneratedImage(imageDataUrl);
-  };
-
-  const handleDownloadImage = () => {
-    if (!generatedImage) return;
-    
-    const link = document.createElement('a');
-    link.href = generatedImage;
-    link.download = `asset-${metadata.basic.assetId || 'document'}.png`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
   };
 
   const requestWhitelist = async () => {
@@ -179,27 +168,8 @@ function CreateAsset() {
     }
   };
 
-  const createAndMintAsset = async () => {
-    if (!metadata) {
-      setMintStatus({ 
-        status: 'error', 
-        message: 'Please complete the asset metadata form first' 
-      });
-      return;
-    }
-
-    setMintStatus({ status: 'loading', message: 'Generating asset document...' });
-    
-    // Wait for image generation if not already done
-    if (!generatedImage) {
-      setMintStatus({ 
-        status: 'error', 
-        message: 'Image generation in progress. Please wait...' 
-      });
-      return;
-    }
-
-    // Proceed with minting
+  const handleMint = async () => {
+    setCurrentStep(3); // Move to minting step
     await mintAssetNFT();
   };
 
@@ -316,125 +286,38 @@ function CreateAsset() {
     }
   };
 
+  const renderStepIndicator = () => {
+    return (
+      <div className="flex items-center justify-center mb-8">
+        {[1, 2, 3].map((step) => (
+          <div key={step} className="flex items-center">
+            <div 
+              className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                currentStep === step 
+                  ? 'bg-blue-500 text-white' 
+                  : currentStep > step 
+                    ? 'bg-green-500 text-white' 
+                    : 'bg-gray-200 text-gray-700'
+              }`}
+            >
+              {currentStep > step ? '✓' : step}
+            </div>
+            {step < 3 && (
+              <div 
+                className={`h-1 w-16 ${
+                  currentStep > step ? 'bg-green-500' : 'bg-gray-200'
+                }`}
+              ></div>
+            )}
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   if (isLoading) {
     return (
       <div className="container mx-auto px-4 py-8">
-        <h2 className="text-2xl font-bold mb-6">Create New Asset</h2>
+        <h2 className="text-2xl font-bold mb-6 text-center">Create and Mint Asset</h2>
         <div className="flex justify-center items-center h-64">
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="container mx-auto px-4 py-8">
-      <h2 className="text-2xl font-bold mb-6">Create New Asset</h2>
-      
-      {whitelistOnly && !isWhitelisted ? (
-        <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6">
-          <div className="flex">
-            <div className="flex-shrink-0">
-              <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-              </svg>
-            </div>
-            <div className="ml-3">
-              <p className="text-sm text-yellow-700">
-                Your address is not whitelisted. You need to be whitelisted to create and mint assets.
-              </p>
-              <div className="mt-4">
-                <button
-                  onClick={requestWhitelist}
-                  className="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600"
-                >
-                  Request Whitelist Access
-                </button>
-              </div>
-              {mintStatus.message && (
-                <div className={`mt-4 p-3 rounded ${
-                  mintStatus.status === 'success' ? 'bg-green-100 text-green-800' :
-                  mintStatus.status === 'error' ? 'bg-red-100 text-red-800' :
-                  'bg-blue-100 text-blue-800'
-                }`}>
-                  {mintStatus.message}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      ) : (
-        <>
-          {!showPreview ? (
-            <AssetMetadataForm 
-              onMetadataSubmit={handleMetadataSubmit}
-              isSubmitting={isSubmitting}
-            />
-          ) : (
-            <>
-              <div className="mb-4 flex justify-between items-center">
-                <h3 className="text-lg font-medium">Asset Preview</h3>
-                <button
-                  onClick={() => setShowPreview(false)}
-                  className="px-3 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
-                >
-                  Back to Form
-                </button>
-              </div>
-              
-              <AssetImageGenerator 
-                metadata={metadata}
-                onImageGenerated={handleImageGenerated}
-              />
-              
-              {generatedImage && (
-                <div className="mt-6">
-                  <h3 className="text-lg font-medium mb-4">Generated Asset Document</h3>
-                  <img 
-                    src={generatedImage} 
-                    alt="Generated Asset Document" 
-                    className="border rounded shadow-sm max-w-full h-auto"
-                  />
-                  <div className="mt-4 flex flex-wrap gap-4">
-                    <button
-                      onClick={handleDownloadImage}
-                      className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-                    >
-                      Download Document
-                    </button>
-                    <button
-                      onClick={mintAssetNFT}
-                      className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
-                      disabled={mintStatus.status === 'loading'}
-                    >
-                      {mintStatus.status === 'loading' ? 'Processing...' : 'Mint as NFT'}
-                    </button>
-                    <button
-                      onClick={createAndMintAsset}
-                      className="px-4 py-2 bg-purple-500 text-white rounded hover:bg-purple-600"
-                      disabled={mintStatus.status === 'loading'}
-                    >
-                      {mintStatus.status === 'loading' ? 'Processing...' : 'Create and Mint'}
-                    </button>
-                  </div>
-                  
-                  {mintStatus.message && (
-                    <div className={`mt-4 p-3 rounded ${
-                      mintStatus.status === 'success' ? 'bg-green-100 text-green-800' :
-                      mintStatus.status === 'error' ? 'bg-red-100 text-red-800' :
-                      'bg-blue-100 text-blue-800'
-                    }`}>
-                      {mintStatus.message}
-                    </div>
-                  )}
-                </div>
-              )}
-            </>
-          )}
-        </>
-      )}
-    </div>
-  );
-}
-
-export default CreateAsset;

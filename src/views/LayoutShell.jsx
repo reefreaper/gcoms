@@ -1,8 +1,9 @@
-// AppShell.jsx
-import { useState } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+// LayoutShell.jsx
+import { useState, useEffect } from 'react'
+import { useNavigate, useLocation, Outlet } from 'react-router-dom'
 import { Home, Building2, Calendar, Users, ClipboardList, ListChecks, BarChart2, Settings, Plus } from 'lucide-react'
 
+// Import the logo
 import logo from '../docs_img.jpeg';
 
 const navItems = [
@@ -18,7 +19,7 @@ const navItems = [
 	{ label: 'Settings', icon: <Settings size={18} />, id: 'settings' }
 ]
 
-export default function LayoutShell({ children }) {
+export default function LayoutShell() {
 	const navigate = useNavigate()
 	const location = useLocation()
 	
@@ -26,17 +27,22 @@ export default function LayoutShell({ children }) {
 	const currentRoute = location.pathname.split('/')[1] || 'dashboard'
 	const [active, setActive] = useState(currentRoute)
 
+	// Add console log to debug
+	useEffect(() => {
+		console.log("LayoutShell rendered");
+		console.log("Current route:", location.pathname);
+		// Check if logo loaded
+		console.log("Logo imported:", logo);
+	}, []);
+
 	const handleNavigation = (id) => {
+		console.log("Navigation clicked:", id);
 		setActive(id)
-		if (id === 'create-asset') {
-			navigate('/create-asset')
-		} else {
-			navigate(`/${id}`)
-		}
+		navigate(`/${id}`)
 	}
 
 	return (
-		<div className="flex h-screen w-screen bg-gray-100 font-sans">
+		<div className="flex h-screen overflow-x-hidden">
 			{/* Sidebar */}
 			<aside className="w-56 bg-white border-r border-gray-200 flex flex-col">
 				<div className="p-2 font-bold text-lg border-b border-gray-200 text-gray-500">
@@ -51,15 +57,15 @@ export default function LayoutShell({ children }) {
 						<span className="text-gray-600">GeoCities</span>
 					</div>
 				</div>
-				<nav className="flex-1 overflow-y-hidden">
+				<nav className="flex-1 overflow-y-auto">
 					{navItems.map((item) => (
 						<button
 							key={item.id}
 							onClick={() => handleNavigation(item.id)}
 							className={`flex items-center px-4 py-3 text-sm w-full text-left hover:bg-gray-100 
 								${active === item.id 
-									? 'bg-gray-200 font-semibold text-gray-400' 
-									: 'text-gray-500'
+									? 'bg-gray-200 font-semibold text-gray-800' 
+									: 'text-gray-700'
 								}`}
 						>
 							<span className="mr-2">{item.icon}</span>
@@ -70,16 +76,16 @@ export default function LayoutShell({ children }) {
 			</aside>
 
 			{/* Main content */}
-			<div className="flex-1 flex flex-col overflow-y-hidden">
+			<div className="flex-1 flex flex-col overflow-hidden">
 				{/* Top Toolbar */}
 				<header className="h-12 bg-white border-b border-gray-200 px-4 flex items-center justify-between">
-					<div className="text-sm text-gray-500">Today is {new Date().toLocaleDateString()}</div>
-					<div className="text-sm text-gray-500">Welcome, Citizen</div>
+					<div className="text-sm text-gray-700">Today is {new Date().toLocaleDateString()}</div>
+					<div className="text-sm text-gray-700">Welcome, Citizen</div>
 				</header>
 
-				{/* App content */}
-				<main className="flex-1 overflow-auto p-4">
-					{children || <div className="text-gray-500">Select a section to begin</div>}
+				{/* App content - Use Outlet to render child routes */}
+				<main className="flex-1 overflow-y-auto overflow-x-hidden p-4 bg-gray-100">
+					<Outlet />
 				</main>
 			</div>
 		</div>
