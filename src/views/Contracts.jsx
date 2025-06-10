@@ -1,27 +1,13 @@
 import { useEffect, useState } from 'react'
-import Countdown from 'react-countdown'
 import { ethers } from 'ethers'
-import { MerkleTree } from 'merkletreejs'
-import keccak256 from 'keccak256'
-import { Buffer } from 'buffer'
-
-// Make Buffer available globally for keccak256
-window.Buffer = Buffer
+import { Link } from 'react-router-dom'
 
 // IMG
 import preview from '../docs_img.jpeg';
 
 // Components
-import Button from '../components/ui/Button';
-import Col from '../components/ui/Col';
-import Row from '../components/ui/Row';
-import Form from '../components/ui/Form';
-import Input from '../components/ui/Row';
 import Navigation from '../components/Navigation';
-import Data from '../components/Data';
-import Mint from '../components/Mint';
 import Loading from '../components/Loading';
-import WhitelistManager from '../components/WhitelistManager';
 
 // ABIs: Import your contract ABIs here
 import NFT_ABI from '../abis/NFT.json'
@@ -32,146 +18,124 @@ import config from '../config.json';
 export default function Contracts() {   
   const [provider, setProvider] = useState(null)
   const [nft, setNFT] = useState(null)
-
   const [account, setAccount] = useState(null)
-  //const [balance, setBalance] = useState(0)
-
-  // set reveal time
-  const [revealTime, setRevealTime] = useState(0)
-  const [maxSupply, setMaxSupply] = useState(0)
-  const [totalSupply, setTotalSupply] = useState(0)
-  const [cost, setCost] = useState(0)
-  const [balance, setBalance] = useState(0) // balance of NFTs 
-  
-  // Whitelist state
-  const [isWhitelisted, setIsWhitelisted] = useState(false)
-  const [whitelistOnly, setWhitelistOnly] = useState(true)
   
   // User's NFTs
   const [userNFTs, setUserNFTs] = useState([])
   
-  // Add new state for selected NFT
+  // Selected NFT state
   const [selectedNFT, setSelectedNFT] = useState(null)
 
   const [isLoading, setIsLoading] = useState(true)
   
-  // Add state for print view
+  // Print view state
   const [printViewImage, setPrintViewImage] = useState(null)
 
+  // Refresh state
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  // Refresh function
+  const refreshData = () => {
+    console.log("Manually refreshing data...");
+    setIsLoading(true);
+    setRefreshKey(prevKey => prevKey + 1);
+  };
+
   const loadBlockchainData = async () => {
-    // Initiate provider
-    const provider = new ethers.providers.Web3Provider(window.ethereum)
-    setProvider(provider)
-
-    // Initiate NFT contract
-    const nft = new ethers.Contract(config[31337].nft.address, NFT_ABI, provider)
-    setNFT(nft)
-
-    // Fetch accounts
-    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' })
-    const account = ethers.utils.getAddress(accounts[0])
-    setAccount(account)
-
-    // Fetch Countdown  
-    const allowMintingOn = await nft.allowMintingOn()
-    setRevealTime(allowMintingOn.toString() + '000')
-
-    // Fetch max supply
-    setMaxSupply(await nft.maxSupply())
-    
-    // Fetch total supply
-    setTotalSupply(await nft.totalSupply())
-
-    // Fetch cost
-    setCost(await nft.cost())
-
-    // Fetch balance
-    setBalance(await nft.balanceOf(account))
-    
-    // Fetch whitelist status
     try {
-      const whitelistOnlyStatus = await nft.whitelistOnly()
-      setWhitelistOnly(whitelistOnlyStatus)
-      console.log("Whitelist only status:", whitelistOnlyStatus)
+      // Initiate provider
+      const provider = new ethers.providers.Web3Provider(window.ethereum)
+      setProvider(provider)
+
+      // Initiate NFT contract
+      const nft = new ethers.Contract(config[31337].nft.address, NFT_ABI, provider)
+      setNFT(nft)
+
+      // Fetch accounts
+      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' })
+      const account = ethers.utils.getAddress(accounts[0])
+      setAccount(account)
+
+      // Fetch user's NFTs
+      const balance = await nft.balanceOf(account)
+      console.log(`Account ${account} has ${balance.toString()} NFTs`)
       
-      if (whitelistOnlyStatus) {
-        try {
-          // Check if we have stored whitelist addresses
-          const storedAddresses = JSON.parse(localStorage.getItem('whitelistedAddresses') || '[]')
-          console.log("Stored whitelist addresses:", storedAddresses)
-          console.log("Current account:", account)
-          console.log("Is account in stored addresses:", storedAddresses.includes(account))
+      if (parseInt(balance) > 0) {
+        const tokenIds = await nft.walletOfOwner(account);
+        console.log("Token IDs owned by account:", tokenIds.map(id => id.toString()));
+        
+        // Create an array to store NFT data with metadata
+        const nftDataPromises = tokenIds.map(async (id) => {
+          const tokenId = id.toString();
+          let imageUrl = null;
+          let metadata = null;
           
-          if (storedAddresses.includes(account)) {
-            // If the account is in our stored whitelist, generate a proper proof
-            // IMPORTANT: Use the EXACT same hashing method as the contract
-            const leaves = storedAddresses.map(addr => 
-              keccak256(Buffer.from(addr.slice(2), 'hex'))
-            )
-            const merkleTree = new MerkleTree(leaves, keccak256, { sortPairs: true })
-            const leaf = keccak256(Buffer.from(account.slice(2), 'hex'))
-            const proof = merkleTree.getHexProof(leaf)
-            console.log("Generated Merkle proof:", proof)
+          try {
+            // Get token URI
+            const tokenURI = await nft.tokenURI(tokenId);
+            console.log(`Token URI for ${tokenId}:`, tokenURI);
             
-            const whitelistStatus = await nft.isWhitelisted(account, proof)
-            setIsWhitelisted(whitelistStatus)
-            console.log(`Account ${account} whitelist status with stored proof: ${whitelistStatus}`)
-          } else {
-            // Try with empty proof as fallback
-            console.log("Account not in stored whitelist, trying with empty proof")
-            const whitelistStatus = await nft.isWhitelisted(account, [])
-            setIsWhitelisted(whitelistStatus)
-            console.log(`Account ${account} whitelist status with empty proof: ${whitelistStatus}`)
-            
-            // If the user is the contract owner, they should be able to mint regardless
-            try {
-              const owner = await nft.owner()
-              if (owner.toLowerCase() === account.toLowerCase()) {
-                console.log("User is contract owner, setting isWhitelisted to true")
-                setIsWhitelisted(true)
+            // If tokenURI is an IPFS URI, fetch metadata
+            if (tokenURI && tokenURI.includes('ipfs://')) {
+              const ipfsHash = tokenURI.replace('ipfs://', '');
+              const metadataUrl = `https://gateway.pinata.cloud/ipfs/${ipfsHash}`;
+              console.log(`Fetching metadata from: ${metadataUrl}`);
+              
+              const response = await fetch(metadataUrl);
+              if (response.ok) {
+                metadata = await response.json();
+                console.log(`Metadata for token ${tokenId}:`, metadata);
+                
+                // Get image URL from metadata
+                if (metadata.image) {
+                  if (metadata.image.startsWith('ipfs://')) {
+                    const imageIpfsHash = metadata.image.replace('ipfs://', '');
+                    imageUrl = `https://gateway.pinata.cloud/ipfs/${imageIpfsHash}`;
+                  } else {
+                    imageUrl = metadata.image;
+                  }
+                  console.log(`Image URL for token ${tokenId}:`, imageUrl);
+                }
+              } else {
+                console.error(`Failed to fetch metadata: ${response.status} ${response.statusText}`);
               }
-            } catch (error) {
-              console.error("Error checking owner:", error)
             }
+          } catch (error) {
+            console.error(`Error processing token ${tokenId}:`, error);
           }
-        } catch (error) {
-          console.log("Could not verify whitelist status:", error)
-          setIsWhitelisted(false)
-        }
+          
+          // Fallback to default image if metadata fetch failed
+          //if (!imageUrl) {
+          //  console.log(`Using fallback image for token ${tokenId}`);
+          //  imageUrl = `https://gateway.pinata.cloud/ipfs/bafybeibf7yagmdkyttc7qb5ybvhytopogfi6c6mg6ktv6twutuyxv42ydm/${tokenId}.png`;
+         // }
+          
+          return {
+            id: tokenId,
+            imageUrl: imageUrl,
+            metadata: metadata
+          };
+        });
+        
+        const nftData = await Promise.all(nftDataPromises);
+        setUserNFTs(nftData);
+        console.log("User NFTs with metadata:", nftData);
       } else {
-        // If whitelist is not required, consider everyone "whitelisted"
-        console.log("Whitelist not required, setting isWhitelisted to true")
-        setIsWhitelisted(true)
+        console.log("Account has no NFTs");
+        setUserNFTs([]);
       }
     } catch (error) {
-      console.error("Error checking whitelist:", error)
-      setIsWhitelisted(false)
+      console.error("Error loading blockchain data:", error);
+    } finally {
+      setIsLoading(false);
     }
-    
-    // Fetch user's NFTs
-    try {
-      if (parseInt(await nft.balanceOf(account)) > 0) {
-        const tokenIds = await nft.walletOfOwner(account)
-        const nftData = tokenIds.map(id => ({
-          id: id.toString(),
-          //imageUrl: `https://gateway.pinata.cloud/ipfs/QmQPEMsfd1tJnqYPbnTQCjoa8vczfsV1FmqZWgRdNQ7z3g/${id.toString()}.png`
-          imageUrl: `https://gateway.pinata.cloud/ipfs/bafybeibf7yagmdkyttc7qb5ybvhytopogfi6c6mg6ktv6twutuyxv42ydm/${id.toString()}.png`
-        }))
-        setUserNFTs(nftData)
-        console.log("User NFTs:", nftData)
-      }
-    } catch (error) {
-      console.error("Error fetching user NFTs:", error)
-    }
-
-    setIsLoading(false)
   }
 
   useEffect(() => {
     if (isLoading) {
-      loadBlockchainData()
+      loadBlockchainData();
     }
-  }, [isLoading]);
+  }, [isLoading, refreshKey]);
 
   useEffect(() => {
     // Set the default selected NFT to the last minted one when userNFTs changes
@@ -204,7 +168,23 @@ export default function Contracts() {
     <div className="w-full max-w-6xl mx-auto px-4 pb-12 text-gray-800 overflow-y-auto h-full">
       <Navigation account={account} />
 
-      <h2 className='mt-8 mb-6 text-center text-2xl font-bold'>Mint Your Asset</h2>
+      <div className="flex justify-between items-center mt-8 mb-6">
+        <h2 className='text-2xl font-bold'>Your Asset Documents</h2>
+        <div className="flex gap-3">
+          <Link 
+            to="/create-asset" 
+            className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 focus:outline-none"
+          >
+            Create New Asset
+          </Link>
+          <button 
+            onClick={refreshData}
+            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 focus:outline-none"
+          >
+            Refresh Assets
+          </button>
+        </div>
+      </div>
 
       {isLoading ? (
         <Loading />
@@ -227,6 +207,26 @@ export default function Contracts() {
                           onClick={() => openPrintView(selectedNFT)}
                         />
                         <p className="mt-2">Asset Doc #{selectedNFT.id}</p>
+                        {selectedNFT.metadata && (
+                          <div className="mt-2 text-left p-3 bg-gray-50 rounded text-sm">
+                            <p className="font-semibold">{selectedNFT.metadata.name || `Asset #${selectedNFT.id}`}</p>
+                            {selectedNFT.metadata.description && (
+                              <p className="text-gray-600 mt-1">{selectedNFT.metadata.description}</p>
+                            )}
+                            {selectedNFT.metadata.attributes && selectedNFT.metadata.attributes.length > 0 && (
+                              <div className="mt-2">
+                                <p className="font-semibold text-xs text-gray-500">Attributes:</p>
+                                <div className="grid grid-cols-2 gap-1 mt-1">
+                                  {selectedNFT.metadata.attributes.map((attr, index) => (
+                                    <div key={index} className="text-xs">
+                                      <span className="text-gray-500">{attr.trait_type}:</span> {attr.value}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
                         <p className="text-sm text-gray-500 mt-1">(Click image to view printable version)</p>
                       </div>
                     )}
@@ -242,68 +242,39 @@ export default function Contracts() {
                     className="max-w-full h-auto"
                   />
                   <p className="mt-2">You don't own any NFTs yet</p>
+                  <Link 
+                    to="/create-asset" 
+                    className="mt-4 inline-block px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 focus:outline-none"
+                  >
+                    Create Your First Asset
+                  </Link>
                 </div>
               )}
             </div>
             
             <div className="flex flex-col">
-              <div className='my-4 text-center font-bold'>
-                <p>Minting Starts In:</p>
-                <Countdown date={parseInt(revealTime)} className='text-xl' />
+              <h4 className="text-center mb-4 font-semibold">Asset Document Details</h4>
+              <p className="text-center mb-6">Each Asset Document is a unique, non-fungible token (NFT) that represents a specific asset. The NFT contains metadata that includes the asset's name, description, and other relevant information. The metadata is stored on the Ethereum blockchain, ensuring transparency and immutability.</p>
+              
+              <div className="flex flex-wrap justify-center gap-3 mt-4">
+                {userNFTs.map(nft => (
+                  <div 
+                    key={nft.id} 
+                    className={`text-center cursor-pointer ${selectedNFT && selectedNFT.id === nft.id ? 'border-2 border-blue-500 p-1 rounded' : ''}`}
+                    onClick={() => handleNFTSelect(nft)}
+                  >
+                    <img 
+                      src={nft.imageUrl}
+                      alt={`Doc #${nft.id}`}
+                      width="80"
+                      height="110"
+                      className="border rounded"
+                    />
+                    <p className="mt-1 text-sm text-gray-500">Asset Doc #{nft.id}</p>
+                  </div>
+                ))}
               </div>
-
-              <Data
-                maxSupply={maxSupply}
-                totalSupply={totalSupply}
-                cost={cost}
-                balance={balance}
-                isWhitelisted={isWhitelisted}
-                whitelistOnly={whitelistOnly}
-              />
-
-              <Mint
-                provider={provider}
-                nft={nft}
-                cost={cost}
-                setIsLoading={setIsLoading}
-                isWhitelisted={isWhitelisted}
-                whitelistOnly={whitelistOnly}
-                account={account}
-              />
             </div>
-          </div>
-          
-          <div className="mb-8">
-            <h4 className="text-center mb-4 font-semibold">Asset Document Details</h4>
-            <p className="text-center mb-6">Each Asset Document is a unique, non-fungible token (NFT) that represents a specific asset. The NFT contains metadata that includes the asset's name, description, and other relevant information. The metadata is stored on the Ethereum blockchain, ensuring transparency and immutability.</p>
-
-            <div className="flex flex-wrap justify-center gap-3">
-              {userNFTs.map(nft => (
-                <div 
-                  key={nft.id} 
-                  className={`text-center cursor-pointer ${selectedNFT && selectedNFT.id === nft.id ? 'border-2 border-blue-500 p-1 rounded' : ''}`}
-                  onClick={() => handleNFTSelect(nft)}
-                >
-                  <img 
-                    src={nft.imageUrl}
-                    alt={`Doc #${nft.id}`}
-                    width="80"
-                    height="110"
-                    className="border rounded"
-                  />
-                  <p className="mt-1 text-sm text-gray-500">Asset Doc #{nft.id}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="mb-8">
-            <WhitelistManager 
-              provider={provider}
-              nft={nft}
-              account={account}
-              setIsLoading={setIsLoading}
-            />
           </div>
           
           {/* Print View Modal */}
@@ -311,7 +282,9 @@ export default function Contracts() {
             <div className="fixed inset-0 bg-white bg-opacity-95 z-50 flex flex-col items-center justify-start p-4 overflow-auto">
               <div className="max-w-[8.5in] w-full bg-white rounded-lg overflow-hidden shadow-md print:shadow-none">
                 <div className="p-4 bg-gray-100 flex justify-between items-center print:hidden">
-                  <h3 className="text-lg font-medium">Asset Document #{printViewImage.id}</h3>
+                  <h3 className="text-lg font-medium">
+                    {printViewImage.metadata?.name || `Asset Document #${printViewImage.id}`}
+                  </h3>
                   <div>
                     <button 
                       onClick={printDocument}

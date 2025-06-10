@@ -8,6 +8,7 @@ import config from '../config.js';
 import { MerkleTree } from 'merkletreejs';
 import keccak256 from 'keccak256';
 import { Buffer } from 'buffer';
+import WhitelistDatabase from '../services/WhitelistDatabase';
 
 // Make Buffer available globally for keccak256
 window.Buffer = Buffer;
@@ -102,68 +103,34 @@ const UnifiedAssetWorkflow = () => {
     setGeneratedImage(imageDataUrl);
   };
 
-  const requestWhitelist = async () => {
-    if (!nftContract || !account) return;
+  const requestWhitelistAccess = async () => {
+    if (!account) return;
     
-    setMintStatus({ status: 'loading', message: 'Requesting whitelist access...' });
+    setMintStatus({ status: 'loading', message: 'Submitting whitelist request...' });
     
     try {
-      const provider = new ethers.providers.Web3Provider(window.ethereum);
-      const signer = provider.getSigner();
+      // Get reason from user (optional)
+      const reason = prompt('Please provide a reason for your whitelist request (optional):');
       
-      // Check if user is owner
-      const owner = await nftContract.owner();
-      const isOwner = owner.toLowerCase() === account.toLowerCase();
+      // Submit request to database
+      const result = await WhitelistDatabase.addWhitelistRequest(account, reason);
       
-      if (isOwner) {
-        // Create a new merkle tree with just the user's address
-        const leaf = keccak256(Buffer.from(account.slice(2), 'hex'));
-        const leaves = [leaf];
-        const merkleTree = new MerkleTree(leaves, keccak256, { sortPairs: true });
-        const root = merkleTree.getHexRoot();
-        
-        // Set the new merkle root
-        const transaction = await nftContract.connect(signer).setMerkleRoot(root, {
-          gasLimit: 100000
-        });
-        await transaction.wait();
-        
-        // Store the whitelist in localStorage
-        localStorage.setItem('whitelistedAddresses', JSON.stringify([account]));
-        
+      if (result) {
         setMintStatus({ 
           status: 'success', 
-          message: 'Successfully added to whitelist! You can now create and mint assets.' 
+          message: 'Your whitelist request has been submitted. Please wait for approval.' 
         });
-        
-        setIsWhitelisted(true);
       } else {
-        // Try to disable whitelist requirement
-        try {
-          const transaction = await nftContract.connect(signer).setWhitelistOnly(false, {
-            gasLimit: 100000
-          });
-          await transaction.wait();
-          
-          setMintStatus({ 
-            status: 'success', 
-            message: 'Whitelist requirement has been disabled. You can now create and mint assets.' 
-          });
-          
-          setWhitelistOnly(false);
-          setIsWhitelisted(true);
-        } catch (error) {
-          setMintStatus({ 
-            status: 'error', 
-            message: 'You don\'t have permission to modify the whitelist. Please use the contract owner account.' 
-          });
-        }
+        setMintStatus({ 
+          status: 'warning', 
+          message: 'You already have a pending whitelist request.' 
+        });
       }
     } catch (error) {
-      console.error("Error in whitelist request:", error);
+      console.error("Error requesting whitelist access:", error);
       setMintStatus({ 
         status: 'error', 
-        message: `Whitelist request failed: ${error.message}` 
+        message: `Failed to submit whitelist request: ${error.message}` 
       });
     }
   };
@@ -311,6 +278,156 @@ const UnifiedAssetWorkflow = () => {
             )}
           </div>
         ))}
+      </div>
+    );
+  };
+
+  // Add this new function for the enhanced preview display
+  const renderEnhancedPreview = () => {
+    if (!metadata || !generatedImage) return null;
+    
+    return (
+      <div className="bg-white rounded-lg shadow-md overflow-hidden">
+        {/* Preview Header */}
+        <div className="bg-gray-50 px-6 py-4 border-b">
+          <h3 className="text-xl font-semibold text-gray-800">Asset Preview</h3>
+          <p className="text-sm text-gray-500">Review your asset details before minting</p>
+        </div>
+        
+        {/* Preview Content */}
+        <div className="p-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {/* Image Preview */}
+            <div className="flex flex-col">
+              <h4 className="text-lg font-medium mb-3 text-gray-700">Document Preview</h4>
+              <div className="border rounded-lg overflow-hidden shadow-sm bg-white">
+                <img 
+                  src={generatedImage} 
+                  alt="Generated Asset Document" 
+                  className="w-full h-auto"
+                />
+              </div>
+              <div className="mt-3 text-sm text-gray-500">
+                This image will be stored on IPFS and linked to your NFT
+              </div>
+            </div>
+            
+            {/* Metadata Preview */}
+            <div className="flex flex-col">
+              <h4 className="text-lg font-medium mb-3 text-gray-700">Asset Details</h4>
+              <div className="bg-gray-50 rounded-lg p-4 border">
+                <div className="space-y-3">
+                  <div>
+                    <h5 className="text-sm font-semibold text-gray-600">Basic Information</h5>
+                    <div className="grid grid-cols-2 gap-2 mt-1">
+                      <div className="text-sm text-gray-500">Title:</div>
+                      <div className="text-sm font-medium">{metadata.basic.title}</div>
+                      
+                      <div className="text-sm text-gray-500">Asset Type:</div>
+                      <div className="text-sm font-medium">{metadata.basic.assetType}</div>
+                      
+                      <div className="text-sm text-gray-500">Asset ID:</div>
+                      <div className="text-sm font-medium">{metadata.basic.assetId || 'Auto-generated'}</div>
+                      
+                      <div className="text-sm text-gray-500">Description:</div>
+                      <div className="text-sm font-medium">{metadata.basic.description || 'N/A'}</div>
+                    </div>
+                  </div>
+                  
+                  <div className="pt-2 border-t">
+                    <h5 className="text-sm font-semibold text-gray-600">Ownership Details</h5>
+                    <div className="grid grid-cols-2 gap-2 mt-1">
+                      <div className="text-sm text-gray-500">Owner:</div>
+                      <div className="text-sm font-medium">{metadata.ownership.ownerName}</div>
+                      
+                      <div className="text-sm text-gray-500">Ownership %:</div>
+                      <div className="text-sm font-medium">{metadata.ownership.ownershipPercentage}%</div>
+                      
+                      <div className="text-sm text-gray-500">Acquisition Date:</div>
+                      <div className="text-sm font-medium">{metadata.ownership.acquisitionDate || 'N/A'}</div>
+                    </div>
+                  </div>
+                  
+                  <div className="pt-2 border-t">
+                    <h5 className="text-sm font-semibold text-gray-600">Valuation</h5>
+                    <div className="grid grid-cols-2 gap-2 mt-1">
+                      <div className="text-sm text-gray-500">Estimated Value:</div>
+                      <div className="text-sm font-medium">
+                        {metadata.value.estimatedValue} {metadata.value.currency}
+                      </div>
+                      
+                      <div className="text-sm text-gray-500">Valuation Date:</div>
+                      <div className="text-sm font-medium">{metadata.value.valuationDate}</div>
+                      
+                      <div className="text-sm text-gray-500">Method:</div>
+                      <div className="text-sm font-medium">{metadata.value.valuationMethod}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          {/* IPFS & Blockchain Preview */}
+          <div className="mt-6 bg-blue-50 rounded-lg p-4 border border-blue-100">
+            <h4 className="text-md font-medium mb-2 text-blue-700">Blockchain Information</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <div className="text-sm font-semibold text-blue-600">NFT Details</div>
+                <div className="text-sm mt-1">
+                  <div className="flex items-center">
+                    <span className="text-gray-500 mr-2">Network:</span>
+                    <span className="font-medium">Ethereum (Hardhat Local)</span>
+                  </div>
+                  <div className="flex items-center mt-1">
+                    <span className="text-gray-500 mr-2">Contract:</span>
+                    <span className="font-medium truncate">{config[31337].nft.address}</span>
+                  </div>
+                  <div className="flex items-center mt-1">
+                    <span className="text-gray-500 mr-2">Minting Cost:</span>
+                    <span className="font-medium">
+                      {nftContract ? ethers.utils.formatEther(cost || '0') : '0'} ETH + gas
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <div className="text-sm font-semibold text-blue-600">Storage Details</div>
+                <div className="text-sm mt-1">
+                  <div className="flex items-center">
+                    <span className="text-gray-500 mr-2">Storage:</span>
+                    <span className="font-medium">IPFS via Pinata</span>
+                  </div>
+                  <div className="flex items-center mt-1">
+                    <span className="text-gray-500 mr-2">Content:</span>
+                    <span className="font-medium">Image + Metadata JSON</span>
+                  </div>
+                  <div className="flex items-center mt-1">
+                    <span className="text-gray-500 mr-2">Permanence:</span>
+                    <span className="font-medium">Decentralized & Permanent</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        {/* Action Buttons */}
+        <div className="bg-gray-50 px-6 py-4 border-t flex justify-between">
+          <button
+            onClick={() => setCurrentStep(1)}
+            className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          >
+            Back to Edit
+          </button>
+          <button
+            onClick={handleMint}
+            disabled={isSubmitting}
+            className="px-4 py-2 border border-transparent rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-blue-300 disabled:cursor-not-allowed"
+          >
+            {isSubmitting ? 'Processing...' : 'Proceed to Mint'}
+          </button>
+        </div>
       </div>
     );
   };

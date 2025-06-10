@@ -25,6 +25,29 @@ function CreateAsset() {
   const [whitelistOnly, setWhitelistOnly] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
   const [nftContract, setNftContract] = useState(null);
+  const [isOwner, setIsOwner] = useState(false);
+
+  // Add this function to help users switch accounts
+  const switchToOwnerAccount = async () => {
+    try {
+      setMintStatus({ status: 'loading', message: 'Please switch to the owner account in your wallet...' });
+      
+      // This will prompt the user to switch accounts in their wallet
+      await window.ethereum.request({
+        method: 'wallet_requestPermissions',
+        params: [{ eth_accounts: {} }],
+      });
+      
+      // After switching, refresh the page to update all states
+      window.location.reload();
+    } catch (error) {
+      console.error("Error switching accounts:", error);
+      setMintStatus({ 
+        status: 'error', 
+        message: 'Failed to switch accounts. Please manually switch to the owner account in your wallet.' 
+      });
+    }
+  };
 
   // Check whitelist status on component mount
   useEffect(() => {
@@ -41,8 +64,24 @@ function CreateAsset() {
         const nft = new ethers.Contract(config[31337].nft.address, NFT_ABI, provider);
         setNftContract(nft);
 
-        // Check if whitelist is required
-        const whitelistRequired = await nft.whitelistOnly();
+        // Check if user is owner
+        try {
+          const owner = await nft.owner();
+          const ownerStatus = owner.toLowerCase() === userAccount.toLowerCase();
+          setIsOwner(ownerStatus);
+          console.log("User is owner:", ownerStatus);
+        } catch (ownerError) {
+          console.error("Error checking owner status:", ownerError);
+          setIsOwner(false);
+        }
+
+        // Check if whitelist is required - handle potential missing function
+        let whitelistRequired = true; // Default to true for security
+        try {
+          whitelistRequired = await nft.whitelistOnly();
+        } catch (whitelistError) {
+          console.log("Contract might not have whitelistOnly function, using default:", whitelistError);
+        }
         setWhitelistOnly(whitelistRequired);
         
         if (whitelistRequired) {
@@ -60,8 +99,13 @@ function CreateAsset() {
             const proof = merkleTree.getHexProof(leaf);
             
             // Verify whitelist status
-            const whitelistStatus = await nft.isWhitelisted(userAccount, proof);
-            setIsWhitelisted(whitelistStatus);
+            try {
+              const whitelistStatus = await nft.isWhitelisted(userAccount, proof);
+              setIsWhitelisted(whitelistStatus);
+            } catch (error) {
+              console.error("Error checking whitelist status with proof:", error);
+              setIsWhitelisted(false);
+            }
           } else {
             // Check if user is owner (owners are always allowed)
             try {
@@ -83,6 +127,7 @@ function CreateAsset() {
       } catch (error) {
         console.error("Error checking whitelist status:", error);
         setIsWhitelisted(false);
+        setIsOwner(false);
       }
       
       setIsLoading(false);
@@ -116,7 +161,7 @@ function CreateAsset() {
   const requestWhitelist = async () => {
     if (!nftContract || !account) return;
     
-    setMintStatus({ status: 'loading', message: 'Requesting whitelist access...' });
+    setMintStatus({ status: 'loading', message: 'Checking ownership status...' });
     
     try {
       const provider = new ethers.providers.Web3Provider(window.ethereum);
@@ -126,49 +171,71 @@ function CreateAsset() {
       const owner = await nftContract.owner();
       const isOwner = owner.toLowerCase() === account.toLowerCase();
       
-      if (isOwner) {
-        // Create a new merkle tree with just the user's address
-        const leaf = keccak256(Buffer.from(account.slice(2), 'hex'));
-        const leaves = [leaf];
-        const merkleTree = new MerkleTree(leaves, keccak256, { sortPairs: true });
-        const root = merkleTree.getHexRoot();
-        
-        // Set the new merkle root
-        const transaction = await nftContract.connect(signer).setMerkleRoot(root, {
+      if (!isOwner) {
+        setMintStatus({ 
+          status: 'error', 
+          message: 'Only the contract owner can whitelist themselves. Please use the contract owner account.' 
+        });
+        return;
+      }
+      
+      // Owner is whitelisting themselves
+      setMintStatus({ status: 'loading', message: 'Adding yourself to whitelist...' });
+      
+      // Create a new merkle tree with just the owner's address
+      const leaf = keccak256(Buffer.from(account.slice(2), 'hex'));
+      const leaves = [leaf];
+      const merkleTree = new MerkleTree(leaves, keccak256, { sortPairs: true });
+      const root = merkleTree.getHexRoot();
+      
+      console.log("Generated merkle root:", root);
+      console.log("For owner address:", account);
+      
+      // Set the new merkle root
+      const transaction = await nftContract.connect(signer).setMerkleRoot(root, {
+        gasLimit: 100000
+      });
+      await transaction.wait();
+      
+      // Store the whitelist in localStorage
+      localStorage.setItem('whitelistedAddresses', JSON.stringify([account]));
+      console.log("Stored whitelisted addresses in localStorage:", [account]);
+      
+      setMintStatus({ 
+        status: 'success', 
+        message: 'Successfully added yourself to whitelist! You can now create and mint assets.' 
+      });
+      
+      setIsWhitelisted(true);
+      
+      // Try to disable whitelist requirement for others
+      try {
+        const disableWhitelistTx = await nftContract.connect(signer).setWhitelistOnly(false, {
           gasLimit: 100000
         });
-        await transaction.wait();
+        await disableWhitelistTx.wait();
         
-        // Store the whitelist in localStorage
-        localStorage.setItem('whitelistedAddresses', JSON.stringify([account]));
-        
+        setWhitelistOnly(false);
         setMintStatus({ 
           status: 'success', 
-          message: 'Successfully added to whitelist! You can now create and mint assets.' 
+          message: 'Successfully added yourself to whitelist and disabled whitelist requirement for others!' 
         });
+      } catch (whitelistError) {
+        console.log("Could not disable whitelist requirement:", whitelistError);
+        // Continue with just the owner being whitelisted
+      }
+      
+      // Verify the whitelist status after setting it
+      try {
+        const proof = merkleTree.getHexProof(leaf);
+        const verificationResult = await nftContract.isWhitelisted(account, proof);
+        console.log("Verification after whitelisting:", verificationResult);
         
-        setIsWhitelisted(true);
-      } else {
-        // Try to disable whitelist requirement
-        try {
-          const transaction = await nftContract.connect(signer).setWhitelistOnly(false, {
-            gasLimit: 100000
-          });
-          await transaction.wait();
-          
-          setMintStatus({ 
-            status: 'success', 
-            message: 'Whitelist requirement has been disabled. You can now create and mint assets.' 
-          });
-          
-          setWhitelistOnly(false);
-          setIsWhitelisted(true);
-        } catch (error) {
-          setMintStatus({ 
-            status: 'error', 
-            message: 'You don\'t have permission to modify the whitelist. Please use the contract owner account.' 
-          });
+        if (!verificationResult) {
+          console.warn("Whitelist verification failed after setting merkle root");
         }
+      } catch (verifyError) {
+        console.error("Error verifying whitelist status after setting:", verifyError);
       }
     } catch (error) {
       console.error("Error in whitelist request:", error);
@@ -343,13 +410,27 @@ function CreateAsset() {
               <p className="text-sm text-yellow-700">
                 Your address is not whitelisted. You need to be whitelisted to create and mint assets.
               </p>
-              <div className="mt-4">
-                <button
-                  onClick={requestWhitelist}
-                  className="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600"
-                >
-                  Request Whitelist Access
-                </button>
+              <div className="mt-2">
+                <p className="text-sm text-yellow-700">
+                  <strong>Current status:</strong> {isOwner ? 'You are the contract owner' : 'You are not the contract owner'}
+                </p>
+              </div>
+              <div className="mt-4 flex space-x-4">
+                {isOwner ? (
+                  <button
+                    onClick={requestWhitelist}
+                    className="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600"
+                  >
+                    Request Whitelist Access
+                  </button>
+                ) : (
+                  <button
+                    onClick={switchToOwnerAccount}
+                    className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+                  >
+                    Switch to Owner Account
+                  </button>
+                )}
               </div>
               {mintStatus.message && (
                 <div className={`mt-4 p-3 rounded ${

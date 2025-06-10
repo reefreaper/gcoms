@@ -164,6 +164,76 @@ class WhitelistDatabase {
     // Nothing to close in browser environment
     console.log('Database connection closed (browser mode)');
   }
+
+  getPendingRequests() {
+    return new Promise((resolve) => {
+      try {
+        const requests = JSON.parse(localStorage.getItem('whitelistRequests') || '[]');
+        console.log("Retrieved pending requests from localStorage:", requests);
+        resolve(requests);
+      } catch (error) {
+        console.error('Error getting pending requests from localStorage:', error);
+        resolve([]);
+      }
+    });
+  }
+
+  addWhitelistRequest(address, reason = '') {
+    return new Promise((resolve) => {
+      try {
+        // Get current requests
+        const requests = JSON.parse(localStorage.getItem('whitelistRequests') || '[]');
+        
+        // Check if address already has a pending request
+        if (requests.some(req => req.address.toLowerCase() === address.toLowerCase())) {
+          console.log("Address already has a pending request:", address);
+          resolve(false);
+          return;
+        }
+        
+        // Add new request
+        const newRequest = {
+          id: Date.now().toString(),
+          address: address,
+          timestamp: new Date().toISOString(),
+          reason: reason
+        };
+        
+        requests.push(newRequest);
+        localStorage.setItem('whitelistRequests', JSON.stringify(requests));
+        console.log("Added whitelist request for:", address);
+        resolve(true);
+      } catch (error) {
+        console.error('Error adding whitelist request to localStorage:', error);
+        resolve(false);
+      }
+    });
+  }
+
+  removeWhitelistRequest(requestId) {
+    return new Promise((resolve) => {
+      try {
+        // Get current requests
+        const requests = JSON.parse(localStorage.getItem('whitelistRequests') || '[]');
+        
+        // Filter out the request to remove
+        const updatedRequests = requests.filter(req => req.id !== requestId);
+        
+        if (updatedRequests.length === requests.length) {
+          // Request not found
+          resolve(false);
+          return;
+        }
+        
+        localStorage.setItem('whitelistRequests', JSON.stringify(updatedRequests));
+        console.log("Removed whitelist request:", requestId);
+        resolve(true);
+      } catch (error) {
+        console.error('Error removing whitelist request from localStorage:', error);
+        resolve(false);
+      }
+    });
+  }
 }
 
 export default new WhitelistDatabase();

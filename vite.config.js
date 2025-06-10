@@ -8,6 +8,11 @@ export default defineConfig(({ mode }) => {
   // Set the third parameter to '' to load all env regardless of the `VITE_` prefix.
   const env = loadEnv(mode, process.cwd(), '')
   
+  // Create a filtered env object with only VITE_ prefixed variables
+  const envWithVitePrefix = Object.fromEntries(
+    Object.entries(env).filter(([key]) => key.startsWith('VITE_'))
+  )
+  
   return {
     plugins: [react(), tailwindcss()],
     server:{
@@ -21,7 +26,7 @@ export default defineConfig(({ mode }) => {
       }
     },
     define: {
-      'process.env': env,
+      'process.env': envWithVitePrefix,
       global: {}
     },
     optimizeDeps: {

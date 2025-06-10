@@ -1,7 +1,7 @@
 // LayoutShell.jsx
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation, Outlet } from 'react-router-dom'
-import { Home, Building2, Calendar, Users, ClipboardList, ListChecks, BarChart2, Settings, Plus } from 'lucide-react'
+import { Home, Building2, Calendar, Users, ClipboardList, ListChecks, BarChart2, Settings, Plus, Shield } from 'lucide-react'
 
 // Import the logo
 import logo from '../docs_img.jpeg';
@@ -16,6 +16,7 @@ const navItems = [
 	{ label: 'Referrals', icon: <Users size={18} />, id: 'referrals' },
 	{ label: 'Activities', icon: <ClipboardList size={18} />, id: 'activities' },
 	{ label: 'Reports', icon: <BarChart2 size={18} />, id: 'reports' },
+	{ label: 'Whitelist', icon: <Shield size={18} />, id: 'whitelist-management' },
 	{ label: 'Settings', icon: <Settings size={18} />, id: 'settings' }
 ]
 

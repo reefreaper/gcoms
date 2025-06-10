@@ -8,6 +8,7 @@ import About from './views/About';
 import Contact from './views/Contact';
 import Contracts from './views/Contracts';
 import CreateAsset from './views/CreateAsset';
+import WhitelistManagementPage from './views/WhitelistManagementPage';
 
 function App() {
   return (
@@ -26,6 +27,7 @@ function App() {
           {/* Dashboard routes */}
           <Route path="dashboard" element={<div>Dashboard Content</div>} />
           <Route path="contracts" element={<Contracts />} />
+          <Route path="whitelist-management" element={<WhitelistManagementPage />} />
           <Route path="facilities" element={<div>Facilities Page</div>} />
           <Route path="calendar" element={<div>Calendar Page</div>} />
           <Route path="tasks" element={<div>Tasks Page</div>} />
